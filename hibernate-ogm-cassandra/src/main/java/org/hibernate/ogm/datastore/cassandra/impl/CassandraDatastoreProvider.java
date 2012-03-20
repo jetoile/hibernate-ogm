@@ -21,7 +21,7 @@
 package org.hibernate.ogm.datastore.cassandra.impl;
 
 import org.hibernate.HibernateException;
-import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.ogm.cfg.OgmConfiguration;
 import org.hibernate.ogm.datastore.spi.DatastoreProvider;
 import org.hibernate.ogm.dialect.GridDialect;
 import org.hibernate.ogm.dialect.cassandra.CassandraCQL2Dialect;
@@ -53,9 +53,6 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 
 	public static final String CASSANDRA_URL = "hibernate.ogm.cassandra.url";
 
-	public static final String CASSANDRA_HBM2DDL_AUTO = AvailableSettings.HBM2DDL_AUTO;
-	public static final String CASSANDRA_HBM2DDL_AUTO_DEFAULT = "validate";
-
 	private Connection connection;
 	private String url;
 	private String keyspace;
@@ -74,10 +71,11 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		}
 		keyspace = (String) configurationValues.get( CASSANDRA_KEYSPACE );
 		url = (String) configurationValues.get( CASSANDRA_URL );
-		configurationMode = (String) configurationValues.get( CASSANDRA_HBM2DDL_AUTO );
+		configurationMode = (String) configurationValues.get( OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA );
 
-		if ( configurationMode == null ) {
-			configurationMode = CASSANDRA_HBM2DDL_AUTO_DEFAULT;
+		if ( !OgmConfiguration.GenerateSchemaValue.isValid( configurationMode ) ) {
+			log.unexpectedConfiguration(OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA, OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA_DEFAULT.getValue());
+			configurationMode = OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA_DEFAULT.getValue();
 		}
 
 		if ( keyspace == null ) {
@@ -131,8 +129,8 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	}
 
 	private void createKeyspaceIfNeeded() {
-		if ( "create-drop".equals( configurationMode )
-				|| "create".equals( configurationMode ) ) {
+		if ( OgmConfiguration.GenerateSchemaValue.CREATE_DROP.getValue().equals( configurationMode )
+				|| OgmConfiguration.GenerateSchemaValue.CREATE.getValue().equals( configurationMode ) ) {
 			try {
 				StringBuilder statement = new StringBuilder()
 						.append( "CREATE KEYSPACE " )
@@ -154,7 +152,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	}
 
 	private void dropKeyspaceIfNeeded() {
-		if ( "create-drop".equals( configurationMode ) ) {
+		if ( OgmConfiguration.GenerateSchemaValue.CREATE_DROP.getValue().equals( configurationMode ) ) {
 			try {
 				StringBuilder statement = new StringBuilder()
 						.append( "DROP KEYSPACE " )
