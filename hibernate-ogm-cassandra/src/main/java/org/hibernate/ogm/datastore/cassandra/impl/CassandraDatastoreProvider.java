@@ -53,7 +53,8 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 
 	public static final String CASSANDRA_URL = "hibernate.ogm.cassandra.url";
 
-	public static final String CASSANDRA_HBM2DDL_AUTO = AvailableSettings.HBM2DDL_AUTO;
+//	public static final String CASSANDRA_HBM2DDL_AUTO = AvailableSettings.HBM2DDL_AUTO;
+	public static final String CASSANDRA_HBM2DDL_AUTO = "hibernate.ogm.cassandra.autogenerate";
 	public static final String CASSANDRA_HBM2DDL_AUTO_DEFAULT = "validate";
 
 	private Connection connection;
@@ -109,7 +110,8 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		//FIXME today we put everything in the same table because Emmanuel does not know how to get the SessionFactory in a service...
 		//FIXME In the end some kind of "lazy" table creation probably makes sense with and ping pong between the datastore and the dialect
 		StringBuilder statement = new StringBuilder()
-				.append( "CREATE TABLE " )
+//				.append( "CREATE TABLE " )
+				.append( "CREATE COLUMNFAMILY " )
 				.append( "GenericTable (" )
 				.append( "key blob PRIMARY KEY);" );
 		//FIXME find a way to bind the key type to the cassandra type: blob sucks from a user PoV
