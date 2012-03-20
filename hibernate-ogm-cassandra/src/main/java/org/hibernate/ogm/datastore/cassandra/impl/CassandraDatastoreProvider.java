@@ -21,7 +21,7 @@
 package org.hibernate.ogm.datastore.cassandra.impl;
 
 import org.hibernate.HibernateException;
-import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.ogm.cfg.OgmConfiguration;
 import org.hibernate.ogm.datastore.spi.DatastoreProvider;
 import org.hibernate.ogm.dialect.GridDialect;
 import org.hibernate.ogm.dialect.cassandra.CassandraCQL2Dialect;
@@ -53,9 +53,6 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 
 	public static final String CASSANDRA_URL = "hibernate.ogm.cassandra.url";
 
-	public static final String CASSANDRA_HBM2DDL_AUTO = AvailableSettings.HBM2DDL_AUTO;
-	public static final String CASSANDRA_HBM2DDL_AUTO_DEFAULT = "validate";
-
 	private Connection connection;
 	private String url;
 	private String keyspace;
@@ -79,10 +76,11 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		}
 		keyspace = (String) configurationValues.get( CASSANDRA_KEYSPACE );
 		url = (String) configurationValues.get( CASSANDRA_URL );
-		configurationMode = (String) configurationValues.get( CASSANDRA_HBM2DDL_AUTO );
+		configurationMode = (String) configurationValues.get( OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA );
 
-		if ( configurationMode == null ) {
-			configurationMode = CASSANDRA_HBM2DDL_AUTO_DEFAULT;
+		if ( !OgmConfiguration.GenerateSchemaValue.isValid( configurationMode ) ) {
+			log.unexpectedConfiguration(OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA, OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA_DEFAULT.getValue());
+			configurationMode = OgmConfiguration.HIBERNATE_OGM_GENERATE_SCHEMA_DEFAULT.getValue();
 		}
 
 		if ( keyspace == null ) {
@@ -114,7 +112,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		//FIXME today we put everything in the same table because Emmanuel does not know how to get the SessionFactory in a service...
 		//FIXME In the end some kind of "lazy" table creation probably makes sense with and ping pong between the datastore and the dialect
 		StringBuilder statement = new StringBuilder()
-				.append( "CREATE COLUMNFAMILY " )
+				.append( "CREATE TABLE " )
 				.append( "GenericTable (" )
 				.append( "key blob PRIMARY KEY);" );
 		//FIXME find a way to bind the key type to the cassandra type: blob sucks from a user PoV
@@ -136,8 +134,8 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	}
 
 	private void createKeyspaceIfNeeded() {
-		if ( "create-drop".equals( configurationMode )
-				|| "create".equals( configurationMode ) ) {
+		if ( OgmConfiguration.GenerateSchemaValue.CREATE_DROP.getValue().equals( configurationMode )
+				|| OgmConfiguration.GenerateSchemaValue.CREATE.getValue().equals( configurationMode ) ) {
 			try {
 				StringBuilder statement = new StringBuilder()
 						.append( "CREATE KEYSPACE " )
@@ -159,7 +157,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	}
 
 	private void dropKeyspaceIfNeeded() {
-		if ( "create-drop".equals( configurationMode ) ) {
+		if ( OgmConfiguration.GenerateSchemaValue.CREATE_DROP.getValue().equals( configurationMode ) ) {
 			try {
 				StringBuilder statement = new StringBuilder()
 						.append( "DROP KEYSPACE " )
