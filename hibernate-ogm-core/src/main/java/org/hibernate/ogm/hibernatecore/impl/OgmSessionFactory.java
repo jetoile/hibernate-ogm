@@ -31,6 +31,7 @@ import javax.naming.Reference;
 import javax.naming.StringRefAddr;
 
 import org.hibernate.Cache;
+import org.hibernate.CustomEntityDirtinessStrategy;
 import org.hibernate.HibernateException;
 import org.hibernate.Interceptor;
 import org.hibernate.MappingException;
@@ -44,6 +45,7 @@ import org.hibernate.cache.spi.QueryCache;
 import org.hibernate.cache.spi.Region;
 import org.hibernate.cache.spi.UpdateTimestampsCache;
 import org.hibernate.cfg.Settings;
+import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.function.SQLFunctionRegistry;
 import org.hibernate.engine.ResultSetMappingDefinition;
@@ -193,6 +195,11 @@ public class OgmSessionFactory implements SessionFactoryImplementor {
 	}
 
 	@Override
+	public Region getNaturalIdCacheRegion(String regionName) {
+		return delegate.getNaturalIdCacheRegion( regionName );
+	}
+
+	@Override
 	public Map getAllSecondLevelCacheRegions() {
 		return delegate.getAllSecondLevelCacheRegions();
 	}
@@ -248,6 +255,16 @@ public class OgmSessionFactory implements SessionFactoryImplementor {
 	}
 
 	@Override
+	public CustomEntityDirtinessStrategy getCustomEntityDirtinessStrategy() {
+		return delegate.getCustomEntityDirtinessStrategy();
+	}
+
+	@Override
+	public CurrentTenantIdentifierResolver getCurrentTenantIdentifierResolver() {
+		return delegate.getCurrentTenantIdentifierResolver();
+	}
+
+	@Override
 	public IdentifierGeneratorFactory getIdentifierGeneratorFactory() {
 		return delegate.getIdentifierGeneratorFactory();
 	}
@@ -291,7 +308,7 @@ public class OgmSessionFactory implements SessionFactoryImplementor {
 
 	@Override
 	public StatelessSessionBuilder withStatelessOptions() {
-		return null;  //To change body of implemented methods use File | Settings | File Templates.
+		return delegate.withStatelessOptions();
 	}
 
 	@Override

@@ -41,8 +41,8 @@
 
     <modules>
         <module>hibernate-ogm-core</module>
-        <module>hibernate-ogm-ehcache</module>
-        <module>hibernate-ogm-infinispan</module>
+        <!--<module>hibernate-ogm-ehcache</module>-->
+        <!--<module>hibernate-ogm-infinispan</module>-->
         <module>hibernate-ogm-cassandra</module>
     </modules>
 
@@ -126,7 +126,7 @@
     <properties>
         <ehcacheVersion>2.5.0</ehcacheVersion>
         <infinispanVersion>5.1.2.FINAL</infinispanVersion>
-        <hibernateVersion>4.0.1.Final</hibernateVersion>
+        <hibernateVersion>4.1.1.Final</hibernateVersion>
         <hibernateSearchVersion>4.1.0.CR1</hibernateSearchVersion>
         <jbossjtaVersion>4.16.2.Final</jbossjtaVersion>
         <jbossNamingVersion>7.1.0.Final</jbossNamingVersion>
