@@ -79,7 +79,7 @@ public class CassandraCQL2Dialect implements GridDialect {
 		boolean next;
 		try {
 			PreparedStatement statement = provider.getConnection().prepareStatement( query.toString() );
-			statement.setBytes( 1, SerializationHelper.toByteArray( key.getId() ) );
+//			statement.setBytes( 1, SerializationHelper.toByteArray( key.getId() ) );
 			statement.execute();
 			resultSet = statement.getResultSet();
 			//FIXME close statement when done with resultset: Cassandra's driver is cool with that though
