@@ -54,6 +54,11 @@ public class CassandraTestHelper implements TestableGridDialect {
 		return false;
 	}
 
+//	@Override
+	public void dropSchemaAndDatabase(SessionFactory sessionFactory) {
+		// NOTHING TO DO
+	}
+
 	public static CassandraDatastoreProvider getProvider(SessionFactory sessionFactory) {
 		DatastoreProvider provider = ((SessionFactoryImplementor) sessionFactory).getServiceRegistry().getService(DatastoreProvider.class);
 		if ( ! (CassandraDatastoreProvider.class.isInstance(provider) ) ) {
