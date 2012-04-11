@@ -69,6 +69,10 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		}
 	}
 
+	public String getKeyspace() {
+		return keyspace;
+	}
+
 	@Override
 	public void configure(Map configurationValues) {
 		if ( configurationValues == null ) {
@@ -114,7 +118,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		StringBuilder statement = new StringBuilder()
 				.append( "CREATE TABLE " )
 				.append( "GenericTable (" )
-				.append( "key blob PRIMARY KEY);" );
+				.append( "key text PRIMARY KEY);" );
 		//FIXME find a way to bind the key type to the cassandra type: blob sucks from a user PoV
 		try {
 			executeStatement( statement.toString(), "Unable create table GenericTable" );
@@ -141,6 +145,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 						.append( "CREATE KEYSPACE " )
 						.append( keyspace )
 						.append( " WITH strategy_class = 'SimpleStrategy'" )
+//						.append( " AND key_validation_class = 'text'")
 						.append( " AND strategy_options:replication_factor = 1;" );
 				Statement sqlStatement = connection.createStatement();
 				sqlStatement.execute( statement.toString() );
@@ -174,7 +179,7 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		}
 	}
 
-	private void executeStatement(String statement, String error) {
+	public void executeStatement(String statement, String error) {
 		try {
 			Statement sqlStatement = connection.createStatement();
 			sqlStatement.execute( statement );

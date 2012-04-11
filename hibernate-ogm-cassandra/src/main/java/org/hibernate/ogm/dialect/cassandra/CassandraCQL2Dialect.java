@@ -39,10 +39,12 @@ import org.hibernate.ogm.util.impl.SerializationHelper;
 import org.hibernate.persister.entity.Lockable;
 import org.hibernate.type.Type;
 
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -54,9 +56,11 @@ import java.util.List;
 public class CassandraCQL2Dialect implements GridDialect {
 
 	private final CassandraDatastoreProvider provider;
+	private final String keyspace;
 
 	public CassandraCQL2Dialect(CassandraDatastoreProvider provider) {
 		this.provider = provider;
+		this.keyspace = this.provider.getKeyspace();
 	}
 
 	@Override
@@ -69,38 +73,87 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public Tuple getTuple(EntityKey key) {
-		String table = "GenericTable"; // FIXME with key.getTable();
-		String idColumnName = "key"; //FIXME extract from key but not present today
+		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+		String table = key.getTable();
+		String s = Arrays.asList( key.getColumnNames() ).toString();
+		String idColumnName = s.substring( 1 ).substring( 0, s.length() - 2 );
+
+		StringBuilder query = new StringBuilder()
+				.append( "CREATE TABLE " )
+				.append( key.getTable() )
+				.append( " (" )
+				.append( "id varchar PRIMARY KEY" )
+//				.append( idColumnName + " varchar PRIMARY KEY" )
+//				.append( "KEY varchar PRIMARY KEY," )
+//				.append( " id varchar" )
+				.append( ");" );
+
+		this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+//			DatabaseMetaData metaData = this.provider.getConnection().getMetaData();
+//			ResultSet res = provider.getConnection().getMetaData().getTables( "Keyspace1", "", "", new String[0] );
+//			res.getMetaData().getTableName( 0 );
+//			System.out.println( metaData );
+
+//		query = new StringBuilder()
+//				.append( "CREATE INDEX id_key_" + key.getTable() + " ON " )
+//				.append(key.getTable())
+//				.append( " (id);" );
+
+//		this.provider.executeStatement( query.toString(), "Unable update table " + key.getTable() );
+
+		//FIXME : hack: issue with commit?
+		try {
+			this.provider.getConnection().close();
+		}
+		catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+		this.provider.start();
+
 		//NOTE: SELECT ''..'' returns all columns except the key
-		StringBuilder query = new StringBuilder( "SELECT * " )
+		StringBuilder query2 = new StringBuilder( "SELECT * " )
 				.append( "FROM " ).append( table )
-				.append( " WHERE " ).append( idColumnName )
+//				.append( " WHERE " ).append( idColumnName )
+				.append( " WHERE " ).append( "id" )
 				.append( "=?" );
 
 		ResultSet resultSet;
 		boolean next;
 		try {
-			PreparedStatement statement = provider.getConnection().prepareStatement( query.toString() );
-//			statement.setBytes( 1, SerializationHelper.toByteArray( key.getId() ) );
+			PreparedStatement statement = provider.getConnection().prepareStatement( query2.toString() );
+			String x = Arrays.asList( key.getColumnValues() ).toString();
+			String idColumnValue = x.substring( 1 ).substring( 0, x.length() - 2 );
+			statement.setString( 1, idColumnValue );
+//			statement.setBytes( 1, SerializationHelper.toByteArray( key.getColumnValues() ) );
+
 			statement.execute();
 			resultSet = statement.getResultSet();
 			//FIXME close statement when done with resultset: Cassandra's driver is cool with that though
 			statement.close();
-		} catch ( SQLException e ) {
+		}
+		catch (SQLException e) {
 			throw new HibernateException( "Cannot execute select query in cassandra", e );
 		}
 		try {
 			next = resultSet.next();
 		}
-		catch ( SQLException e ) {
-			throw new HibernateException("Error while reading resultset", e);
+		catch (SQLException e) {
+			throw new HibernateException( "Error while reading resultset", e );
 		}
 		if ( next == false ) {
 			//FIXME Cassandra CQL/JDBC driver return a pseudo row even if the entity does not exists
 			// see https://github.com/hibernate/hibernate-ogm/pull/50#issuecomment-4391896
 			return null;
-		} else {
-			return new Tuple( new ResultSetTupleSnapshot( resultSet ) );
+		}
+		else {
+			Tuple tuple = new Tuple( new ResultSetTupleSnapshot( resultSet ) );
+			if (tuple.getColumnNames().size() == 1) {
+				return null;
+			} else {
+				return tuple;
+			}
 		}
 	}
 
@@ -111,11 +164,20 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public void updateTuple(Tuple tuple, EntityKey key) {
-		String table = "GenericTable"; // FIXME with key.getTable();
-		String idColumnName = "key"; //FIXME extract from key but not present today
+		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+		String table = key.getTable(); // FIXME with key.getTable();
+		String s = Arrays.asList( key.getColumnNames() ).toString();
+		String idColumnName = s.substring( 1 ).substring( 0, s.length() - 2 );
+
+//		String table = "GenericTable"; // FIXME with key.getTable();
+//		String idColumnName = "key"; //FIXME extract from key but not present today
 		//NOTE: SELECT ''..'' returns all columns except the key
+
+
 		StringBuilder query = new StringBuilder();
-		query.append( "BEGIN BATCH;" );
+//		query.append( "BEGIN BATCH;" );
+
 		List<TupleOperation> updateOps = new ArrayList<TupleOperation>( tuple.getOperations().size() );
 		List<TupleOperation> deleteOps = new ArrayList<TupleOperation>( tuple.getOperations().size() );
 
@@ -131,28 +193,47 @@ public class CassandraCQL2Dialect implements GridDialect {
 				default:
 					throw new HibernateException( "TupleOperation not supported: " + op.getType() );
 			}
-			if ( updateOps.size() > 0 ) {
-				query.append( "UPDATE " ).append( table ).append( " SET " )
-						// column=?
-						//TODO Finish this column=?
-						.append( "WHERE " ).append( idColumnName )
-						.append( "=?" );
-			}
-			if ( deleteOps.size() > 0 ) {
-				query.append( "DELETE " )
-						// column
-						//TODO Finish this column
-						.append( " FROM " ).append( table )
-						.append( " WHERE " ).append( idColumnName )
-						.append( "=?" );
-			}
+
 		}
-		//TODO apply parameters
+		StringBuilder keyList = new StringBuilder(  );
+		StringBuilder valueList = new StringBuilder(  );
+		for ( TupleOperation op : updateOps ) {
+			keyList.append( op.getColumn() ).append(",") ;
+			valueList.append("'").append(op.getValue() ).append("'").append( "," );
+		}
+		query.append( "INSERT INTO " )
+				.append( key.getTable() )
+				.append( "(" )
+				.append( keyList.substring( 0, keyList.length() - 1 ) )
+				.append( ") VALUES(" )
+				.append( valueList.substring( 0, valueList.length() - 1 ) )
+				.append( ")" );
+		this.provider.executeStatement(
+				query.toString(),
+				"unable to insert " + "value" + " from " + key.getTable()
+		);
 
-		//TODO execute query
 
-		query.append( "APPLY BATCH;" );
 
+
+//				query.append( "UPDATE " ).append( table ).append( " SET " )
+//						// column=?
+//						.append( key.getTable() )
+//						//TODO Finish this column=?
+//						.append( " WHERE " ).append( idColumnName )
+//						.append( "=?" );
+
+//		}
+		if ( deleteOps.size() > 0 ) {
+			query.append( "DELETE " )
+					// column
+					//TODO Finish this column
+					.append( " FROM " ).append( table )
+					.append( " WHERE " ).append( idColumnName )
+					.append( "=?" );
+		}
+
+//		query.append( "APPLY BATCH;" );
 	}
 
 	@Override
@@ -167,6 +248,9 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public Association createAssociation(AssociationKey key) {
+		//Build Tuple object for row key entry
+		// RowKey{table='AccountOwner_BankAccount', columns=[owners_id, bankAccounts_id], columnValues=[c8e14ece-a2c8-4e15-bed9-356d3986b0e7, b54bb9d0-01ec-4b65-a052-bb163367d7f6]} in association AssociationKey{table='AccountOwner_BankAccount'
+		// owners_id = 'c8e14ece-a2c8-4e15-bed9-356d3986b0e7'
 		return null;  //To change body of implemented methods use File | Settings | File Templates.
 	}
 
