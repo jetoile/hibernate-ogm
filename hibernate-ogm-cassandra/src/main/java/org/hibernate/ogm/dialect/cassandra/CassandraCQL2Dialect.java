@@ -26,20 +26,20 @@ import org.hibernate.dialect.lock.LockingStrategy;
 import org.hibernate.id.IntegralDataTypeHolder;
 import org.hibernate.ogm.datastore.cassandra.impl.CassandraDatastoreProvider;
 import org.hibernate.ogm.datastore.impl.MapBasedTupleSnapshot;
+import org.hibernate.ogm.datastore.mapbased.impl.MapAssociationSnapshot;
 import org.hibernate.ogm.datastore.spi.Association;
 import org.hibernate.ogm.datastore.spi.Tuple;
 import org.hibernate.ogm.datastore.spi.TupleOperation;
 import org.hibernate.ogm.dialect.GridDialect;
+import org.hibernate.ogm.dialect.cassandra.impl.ResultSetAssociationSnapshot;
 import org.hibernate.ogm.dialect.cassandra.impl.ResultSetTupleSnapshot;
 import org.hibernate.ogm.grid.AssociationKey;
 import org.hibernate.ogm.grid.EntityKey;
 import org.hibernate.ogm.grid.RowKey;
 import org.hibernate.ogm.type.GridType;
-import org.hibernate.ogm.util.impl.SerializationHelper;
 import org.hibernate.persister.entity.Lockable;
 import org.hibernate.type.Type;
 
-import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Uses CQL syntax v2
@@ -89,7 +90,11 @@ public class CassandraCQL2Dialect implements GridDialect {
 //				.append( " id varchar" )
 				.append( ");" );
 
-		this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+		try {
+			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+		} catch (HibernateException e) {
+			//TODO / FIXME already done??
+		}
 //			DatabaseMetaData metaData = this.provider.getConnection().getMetaData();
 //			ResultSet res = provider.getConnection().getMetaData().getTables( "Keyspace1", "", "", new String[0] );
 //			res.getMetaData().getTableName( 0 );
@@ -174,7 +179,6 @@ public class CassandraCQL2Dialect implements GridDialect {
 //		String idColumnName = "key"; //FIXME extract from key but not present today
 		//NOTE: SELECT ''..'' returns all columns except the key
 
-
 		StringBuilder query = new StringBuilder();
 //		query.append( "BEGIN BATCH;" );
 
@@ -213,9 +217,6 @@ public class CassandraCQL2Dialect implements GridDialect {
 				"unable to insert " + "value" + " from " + key.getTable()
 		);
 
-
-
-
 //				query.append( "UPDATE " ).append( table ).append( " SET " )
 //						// column=?
 //						.append( key.getTable() )
@@ -232,7 +233,6 @@ public class CassandraCQL2Dialect implements GridDialect {
 					.append( " WHERE " ).append( idColumnName )
 					.append( "=?" );
 		}
-
 //		query.append( "APPLY BATCH;" );
 	}
 
@@ -243,19 +243,132 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public Association getAssociation(AssociationKey key) {
-		return null;  //To change body of implemented methods use File | Settings | File Templates.
+		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+		StringBuilder query = new StringBuilder()
+				.append( "CREATE TABLE " )
+				.append( key.getTable() )
+				.append( " (" )
+						//				.append( "id varchar PRIMARY KEY" )
+				.append( key.getTable() + "_id varchar PRIMARY KEY" )
+						//				.append( "KEY varchar PRIMARY KEY," )
+						//				.append( " id varchar" )
+				.append( ");" );
+		try {
+			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+		} catch (HibernateException e) {
+			//TODO / FIXME already created??
+		}
+
+
+//		query = new StringBuilder()
+//				.append( "CREATE INDEX id_key_" + key.getColumnNames()[0] + " ON " )
+//				.append(key.getTable())
+//				.append( " (")
+//				.append(key.getColumnNames()[0])
+//				.append( ");" );
+//
+//		this.provider.executeStatement( query.toString(), "Unable update table " + key.getTable() );
+
+		//FIXME : hack: issue with commit?
+		try {
+			this.provider.getConnection().close();
+		}
+		catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+		this.provider.start();
+
+		//NOTE: SELECT ''..'' returns all columns except the key
+		StringBuilder query2 = new StringBuilder( "SELECT * " )
+				.append( "FROM " ).append( key.getTable() )
+				.append( " WHERE " ).append( key.getTable() + "_id" )
+//				.append( " WHERE " ).append( "id" )
+				.append( "=?" );
+
+		ResultSet resultSet;
+		boolean next;
+		try {
+			PreparedStatement statement = provider.getConnection().prepareStatement( query2.toString() );
+			statement.setString( 1, key.getColumnValues()[0].toString() );
+
+			statement.execute();
+			resultSet = statement.getResultSet();
+			//FIXME close statement when done with resultset: Cassandra's driver is cool with that though
+			statement.close();
+		}
+		catch (SQLException e) {
+			throw new HibernateException( "Cannot execute select query in cassandra", e );
+		}
+
+		try {
+			next = resultSet.next();
+		}
+		catch (SQLException e) {
+			throw new HibernateException( "Error while reading resultset", e );
+		}
+		if ( next == false ) {
+			//FIXME Cassandra CQL/JDBC driver return a pseudo row even if the entity does not exists
+			// see https://github.com/hibernate/hibernate-ogm/pull/50#issuecomment-4391896
+			return null;
+		}
+		else {
+			Association association = new Association( new ResultSetAssociationSnapshot( resultSet ) );
+			if ( association.isEmpty() ) {
+				return null;
+			}
+			else {
+				return association;
+			}
+		}
 	}
 
 	@Override
 	public Association createAssociation(AssociationKey key) {
+		return new Association( new MapAssociationSnapshot( new HashMap<RowKey, Map<String, Object>>() ) ) ;
+//
+//		               //TODO
+//		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+
 		//Build Tuple object for row key entry
 		// RowKey{table='AccountOwner_BankAccount', columns=[owners_id, bankAccounts_id], columnValues=[c8e14ece-a2c8-4e15-bed9-356d3986b0e7, b54bb9d0-01ec-4b65-a052-bb163367d7f6]} in association AssociationKey{table='AccountOwner_BankAccount'
 		// owners_id = 'c8e14ece-a2c8-4e15-bed9-356d3986b0e7'
-		return null;  //To change body of implemented methods use File | Settings | File Templates.
+//		return null;  //To change body of implemented methods use File | Settings | File Templates.
 	}
 
 	@Override
 	public void updateAssociation(Association association, AssociationKey key) {
+		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+
+		StringBuilder query = new StringBuilder(  );
+
+		StringBuilder columnIds = new StringBuilder(  );
+		StringBuilder columnValues = new StringBuilder(  );
+
+		for (RowKey row : association.getKeys()) {
+			columnIds.append(Arrays.asList(row.getColumnNames()));
+			columnValues.append( Arrays.asList( row.getColumnValues() ) );
+		}
+		String columnIdsValue = columnIds.substring( 1, columnIds.length() - 1 );
+		String columnValuesValue = columnValues.substring( 1, columnValues.length() - 1 );
+
+		query.append( "INSERT INTO " )
+				.append( key.getTable() )
+				.append( "(" )
+				.append( key.getTable() + "_id," )
+				.append( columnIdsValue )
+				.append( ") VALUES(" )
+				.append( key.getColumnValues()[0].toString() + "," )
+				.append( columnValuesValue )
+				.append( ");" );
+		this.provider.executeStatement(
+				query.toString(),
+				"unable to insert " + "value" + " from " + key.getTable()
+		);
+
 		//To change body of implemented methods use File | Settings | File Templates.
 	}
 
@@ -266,7 +379,7 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public Tuple createTupleAssociation(AssociationKey associationKey, RowKey rowKey) {
-		return null;  //To change body of implemented methods use File | Settings | File Templates.
+		return new Tuple( new MapBasedTupleSnapshot( new HashMap<String, Object>() ) );
 	}
 
 	@Override
