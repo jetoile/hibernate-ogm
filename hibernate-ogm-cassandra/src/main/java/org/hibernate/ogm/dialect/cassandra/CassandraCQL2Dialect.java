@@ -80,21 +80,23 @@ public class CassandraCQL2Dialect implements GridDialect {
 		String s = Arrays.asList( key.getColumnNames() ).toString();
 		String idColumnName = s.substring( 1 ).substring( 0, s.length() - 2 );
 
-		StringBuilder query = new StringBuilder()
-				.append( "CREATE TABLE " )
-				.append( key.getTable() )
-				.append( " (" )
-				.append( "id varchar PRIMARY KEY" )
-//				.append( idColumnName + " varchar PRIMARY KEY" )
-//				.append( "KEY varchar PRIMARY KEY," )
-//				.append( " id varchar" )
-				.append( ");" );
+		this.provider.createEntityTableIfNeeded(key.getTable(), "Unable create table " + key.getTable());
 
-		try {
-			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
-		} catch (HibernateException e) {
-			//TODO / FIXME already done??
-		}
+//		StringBuilder query = new StringBuilder()
+//				.append( "CREATE TABLE " )
+//				.append( key.getTable() )
+//				.append( " (" )
+//				.append( "id varchar PRIMARY KEY" )
+////				.append( idColumnName + " varchar PRIMARY KEY" )
+////				.append( "KEY varchar PRIMARY KEY," )
+////				.append( " id varchar" )
+//				.append( ");" );
+//
+//		try {
+//			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+//		} catch (HibernateException e) {
+//			//TODO / FIXME already done??
+//		}
 //			DatabaseMetaData metaData = this.provider.getConnection().getMetaData();
 //			ResultSet res = provider.getConnection().getMetaData().getTables( "Keyspace1", "", "", new String[0] );
 //			res.getMetaData().getTableName( 0 );
@@ -108,12 +110,12 @@ public class CassandraCQL2Dialect implements GridDialect {
 //		this.provider.executeStatement( query.toString(), "Unable update table " + key.getTable() );
 
 		//FIXME : hack: issue with commit?
-		try {
-			this.provider.getConnection().close();
-		}
-		catch (SQLException e) {
-			e.printStackTrace();
-		}
+//		try {
+//			this.provider.getConnection().close();
+//		}
+//		catch (SQLException e) {
+//			e.printStackTrace();
+//		}
 
 		this.provider.start();
 
@@ -243,22 +245,24 @@ public class CassandraCQL2Dialect implements GridDialect {
 
 	@Override
 	public Association getAssociation(AssociationKey key) {
-		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+		this.provider.createAssociationTableIfNeededWithIndex( key.getTable(), key.getTable(), "Unable create table " + key.getTable() );
 
-		StringBuilder query = new StringBuilder()
-				.append( "CREATE TABLE " )
-				.append( key.getTable() )
-				.append( " (" )
-						//				.append( "id varchar PRIMARY KEY" )
-				.append( key.getTable() + "_id varchar PRIMARY KEY" )
-						//				.append( "KEY varchar PRIMARY KEY," )
-						//				.append( " id varchar" )
-				.append( ");" );
-		try {
-			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
-		} catch (HibernateException e) {
-			//TODO / FIXME already created??
-		}
+//		this.provider.executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+//
+//		StringBuilder query = new StringBuilder()
+//				.append( "CREATE TABLE " )
+//				.append( key.getTable() )
+//				.append( " (" )
+//						//				.append( "id varchar PRIMARY KEY" )
+//				.append( key.getTable() + "_id varchar PRIMARY KEY" )
+//						//				.append( "KEY varchar PRIMARY KEY," )
+//						//				.append( " id varchar" )
+//				.append( ");" );
+//		try {
+//			this.provider.executeStatement( query.toString(), "Unable create table " + key.getTable() );
+//		} catch (HibernateException e) {
+//			//TODO / FIXME already created??
+//		}
 
 
 //		query = new StringBuilder()
@@ -271,12 +275,12 @@ public class CassandraCQL2Dialect implements GridDialect {
 //		this.provider.executeStatement( query.toString(), "Unable update table " + key.getTable() );
 
 		//FIXME : hack: issue with commit?
-		try {
-			this.provider.getConnection().close();
-		}
-		catch (SQLException e) {
-			e.printStackTrace();
-		}
+//		try {
+//			this.provider.getConnection().close();
+//		}
+//		catch (SQLException e) {
+//			e.printStackTrace();
+//		}
 
 		this.provider.start();
 

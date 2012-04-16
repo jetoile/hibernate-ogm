@@ -39,7 +39,13 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.collections.set.UnmodifiableSet;
 
 /**
  * @author Emmanuel Bernard <emmanuel@hibernate.org>
@@ -57,6 +63,9 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	private String url;
 	private String keyspace;
 	private String configurationMode;
+
+	private List<String> entityListCache = new ArrayList<String>(  );
+	private List<String> associationListCache = new ArrayList<String>(  );
 
 	private static final Log log = LoggerFactory.make();
 
@@ -179,6 +188,57 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 		}
 	}
 
+	public void createAssociationTableIfNeededWithIndex(String entityName, String indexName, String error) {
+		if ( associationListCache.contains( entityName ) ) {
+			return;
+		}
+
+		try {
+		executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+		StringBuilder query = new StringBuilder()
+				.append( "CREATE TABLE " )
+				.append( entityName )
+				.append( " (" )
+						//				.append( "id varchar PRIMARY KEY" )
+				.append( indexName + "_id varchar PRIMARY KEY" )
+						//				.append( "KEY varchar PRIMARY KEY," )
+						//				.append( " id varchar" )
+				.append( ");" );
+
+			executeStatement( query.toString(), error );
+
+			associationListCache.add( entityName );
+		}
+		catch (Exception e) {
+			throw new HibernateException( error, e );
+		}
+
+
+	}
+
+	public void createEntityTableIfNeeded(String entityName, String error) {
+		if ( entityListCache.contains( entityName ) ) {
+			return;
+		}
+		try {
+			executeStatement( "USE " + this.keyspace + ";", "Unable to switch to keyspace " + this.keyspace );
+
+			StringBuilder query = new StringBuilder()
+					.append( "CREATE TABLE " )
+					.append( entityName )
+					.append( " (" )
+					.append( "id varchar PRIMARY KEY" )
+					.append( ");" );
+
+			executeStatement( query.toString(), error );
+			entityListCache.add( entityName );
+		}
+		catch (Exception e) {
+			throw new HibernateException( error, e );
+		}
+	}
+
 	public void executeStatement(String statement, String error) {
 		try {
 			Statement sqlStatement = connection.createStatement();
@@ -204,4 +264,13 @@ public class CassandraDatastoreProvider implements DatastoreProvider, Startable,
 	public Connection getConnection() {
 		return connection;
 	}
+
+	public int getNbEntities() {
+		return entityListCache.size();
+	}
+
+	public int getNbAssociation() {
+		return associationListCache.size();
+	}
+
 }

@@ -36,12 +36,12 @@ public class CassandraTestHelper implements TestableGridDialect {
 
 	@Override
 	public int entityCacheSize(SessionFactory sessionFactory) {
-		return 0;
+		return getProvider( sessionFactory ).getNbEntities();
 	}
 
 	@Override
 	public int associationCacheSize(SessionFactory sessionFactory) {
-		return 0;
+		return getProvider( sessionFactory ).getNbAssociation();
 	}
 
 	@Override
